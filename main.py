@@ -5,12 +5,33 @@ import secrets
 
 import psycopg
 from fastapi import FastAPI, Header, HTTPException, Request
+from pydantic import BaseModel
 
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 ADMIN_API_KEY = os.environ["ADMIN_API_KEY"]
 
 app = FastAPI()
+
+
+class AdminUserCreate(BaseModel):
+    username: str | None = None
+    email: str | None = None
+    password: str
+    active: bool = True
+    expires_at: str | None = None
+
+
+class AdminUserUpdate(BaseModel):
+    active: bool | None = None
+    expires_at: str | None = None
+
+
+def _model_dict(model: BaseModel) -> dict:
+    if hasattr(model, "model_dump"):
+        return model.model_dump(exclude_unset=True)  # pydantic v2
+    return model.dict(exclude_unset=True)  # pydantic v1
+
 
 
 def now_utc():
@@ -69,14 +90,13 @@ def require_admin(x_admin_key: str | None):
 
 
 @app.post("/admin/users")
-async def admin_create_user(req: Request, x_admin_key: str | None = Header(default=None)):
+async def admin_create_user(payload: AdminUserCreate, x_admin_key: str | None = Header(default=None)):
     require_admin(x_admin_key)
-    body = await req.json()
-    username = (body.get("username") or "").strip() or None
-    email = (body.get("email") or "").strip() or None
-    password = body.get("password") or ""
-    active = bool(body.get("active", True))
-    expires_at = body.get("expires_at")
+    username = (payload.username or "").strip() or None
+    email = (payload.email or "").strip() or None
+    password = payload.password or ""
+    active = bool(payload.active)
+    expires_at = payload.expires_at
 
     if not (username or email):
         raise HTTPException(400, "need username or email")
@@ -99,9 +119,9 @@ async def admin_create_user(req: Request, x_admin_key: str | None = Header(defau
 
 
 @app.patch("/admin/users/{user_id}")
-async def admin_update_user(user_id: int, req: Request, x_admin_key: str | None = Header(default=None)):
+async def admin_update_user(user_id: int, payload: AdminUserUpdate, x_admin_key: str | None = Header(default=None)):
     require_admin(x_admin_key)
-    body = await req.json()
+    body = _model_dict(payload)
     active = body.get("active")
     expires_at = body.get("expires_at")
 
