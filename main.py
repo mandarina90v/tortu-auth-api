@@ -144,6 +144,29 @@ async def admin_update_user(user_id: int, payload: AdminUserUpdate, x_admin_key:
     return {"ok": True}
 
 
+@app.get("/admin/users")
+def admin_list_users(x_admin_key: str | None = Header(default=None)):
+    require_admin(x_admin_key)
+    with psycopg.connect(DATABASE_URL) as con:
+        with con.cursor() as cur:
+            cur.execute("SELECT id,username,email,active,expires_at,created_at FROM users ORDER BY id DESC")
+            rows = cur.fetchall()
+    users = []
+    for row in rows:
+        user_id, username, email, active, expires_at, created_at = row
+        users.append(
+            {
+                "id": user_id,
+                "username": username,
+                "email": email,
+                "active": bool(active),
+                "expires_at": expires_at,
+                "created_at": created_at,
+            }
+        )
+    return {"users": users}
+
+
 @app.post("/auth/login")
 async def login(req: Request):
     body = await req.json()
