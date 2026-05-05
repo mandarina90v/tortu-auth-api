@@ -167,6 +167,26 @@ def admin_list_users(x_admin_key: str | None = Header(default=None)):
     return {"users": users}
 
 
+@app.get("/admin/dbinfo")
+def admin_dbinfo(x_admin_key: str | None = Header(default=None)):
+    require_admin(x_admin_key)
+    with psycopg.connect(DATABASE_URL) as con:
+        with con.cursor() as cur:
+            cur.execute("SELECT current_database(), current_user, current_schema()")
+            db, user, schema = cur.fetchone()
+            cur.execute("SELECT COUNT(*) FROM users")
+            users_count = int(cur.fetchone()[0])
+            cur.execute("SELECT COUNT(*) FROM sessions")
+            sessions_count = int(cur.fetchone()[0])
+    return {
+        "database": db,
+        "user": user,
+        "schema": schema,
+        "users_count": users_count,
+        "sessions_count": sessions_count,
+    }
+
+
 @app.post("/auth/login")
 async def login(req: Request):
     body = await req.json()
